@@ -1884,7 +1884,7 @@
                 this.player = null;
                 this.zombies = [];
 
-                this.paintTexture = Tile.grass.id;
+                this.paintTexture = Tile.rock.id;
 
                 this.renderer = null;
                 this.scene = null;
@@ -2209,16 +2209,16 @@
                     if (e.code === 'KeyO') {
                         this.takeScreenshot();
                     }
-                    if (e.code === 'Digit1') {
-                        this.paintTexture = 1;
+                    if (e.code === 'Digit1'|| e.code === 'Numpad1') {
+                        this.paintTexture = 2;
                     }
-                    if (e.code === 'Digit2') {
+                    if (e.code === 'Digit2'|| e.code === 'Numpad2') {
                         this.paintTexture = 3;
                     }
-                    if (e.code === 'Digit3') {
+                    if (e.code === 'Digit3'|| e.code === 'Numpad3') {
                         this.paintTexture = 4;
                     }
-                    if (e.code === 'Digit4') {
+                    if (e.code === 'Digit4'|| e.code === 'Numpad4') {
                         this.paintTexture = 5;
                     }
                 });
