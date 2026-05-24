@@ -154,38 +154,40 @@
             }
         }
 
-        const p2_16 = 0x10000;
-        const p2_24 = 0x1000000;
-        const p2_27 = 0x8000000;
-        const p2_31 = 0x80000000;
-        const p2_32 = 0x100000000;
-        const p2_48 = 0x1000000000000;
-        const p2_53 = Math.pow(2, 53);
-        const m2_16 = 0xffff;
-        const [c2, c1, c0] = [0x0005, 0xdeec, 0xe66d];
-
         class JavaRandom {
+            static p2_16 = 0x10000;
+            static p2_24 = 0x1000000;
+            static p2_27 = 0x8000000;
+            static p2_31 = 0x80000000;
+            static p2_32 = 0x100000000;
+            static p2_48 = 0x1000000000000;
+            static p2_53 = Math.pow(2, 53);
+            static m2_16 = 0xffff;
+            static c2 = 0x0005;
+            static c1 = 0xdeec;
+            static c0 = 0xe66d;
+
             constructor(seedval) {
                 this.s2 = 0; this.s1 = 0; this.s0 = 0;
                 this.nextNextGaussian = 0;
                 this.haveNextNextGaussian = false;
 
                 if (seedval === undefined) {
-                    seedval = Math.floor(Math.random() * p2_48);
+                    seedval = Math.floor(Math.random() * JavaRandom.p2_48);
                 }
                 this.setSeed(seedval);
             }
 
             _next() {
                 let carry = 0xb;
-                let r0 = (this.s0 * c0) + carry;
+                let r0 = (this.s0 * JavaRandom.c0) + carry;
                 carry = r0 >>> 16;
-                r0 &= m2_16;
-                let r1 = (this.s1 * c0 + this.s0 * c1) + carry;
+                r0 &= JavaRandom.m2_16;
+                let r1 = (this.s1 * JavaRandom.c0 + this.s0 * JavaRandom.c1) + carry;
                 carry = r1 >>> 16;
-                r1 &= m2_16;
-                let r2 = (this.s2 * c0 + this.s1 * c1 + this.s0 * c2) + carry;
-                r2 &= m2_16;
+                r1 &= JavaRandom.m2_16;
+                let r2 = (this.s2 * JavaRandom.c0 + this.s1 * JavaRandom.c1 + this.s0 * JavaRandom.c2) + carry;
+                r2 &= JavaRandom.m2_16;
 
                 this.s2 = r2; this.s1 = r1; this.s0 = r0;
                 return (r2 << 16) | r1;
@@ -221,8 +223,8 @@
             }
 
             nextBoolean() { return this.next(1) !== 0; }
-            nextFloat() { return this.next(24) / p2_24; }
-            nextDouble() { return (p2_27 * this.next(26) + this.next(27)) / p2_53; }
+            nextFloat() { return this.next(24) / JavaRandom.p2_24; }
+            nextDouble() { return (JavaRandom.p2_27 * this.next(26) + this.next(27)) / JavaRandom.p2_53; }
         }
 
         class PerlinNoiseFilter {
@@ -257,7 +259,7 @@
                             let dl = tmp[(x + 0) % width + ((i + step) % height) * width];
                             let dr = tmp[(x + step) % width + ((i + step) % height) * width];
 
-                            let m = Math.floor((ul + dl + ur + dr) / 4) + random.nextInt(val * 2) - val;
+                            let m = Math.trunc((ul + dl + ur + dr) / 4) + random.nextInt(val * 2) - val;
 
                             tmp[x + ss + (i + ss) * width] = m;
                         }
@@ -269,12 +271,12 @@
                             let r = tmp[(x + step) % width + i * width];
                             let d = tmp[x + ((i + step) % height) * width];
 
-                            let mu = tmp[((x + ss) % width) + ((i + ss - step + height) % height) * width];
-                            let ml = tmp[((x + ss - step + width) % width) + ((i + ss) % height) * width];
-                            let m = tmp[(x + ss) % width + (i + ss) % height * width];
+                            let mu = tmp[((x + ss) & (width - 1)) + ((i + ss - step) & (height - 1)) * width];
+                            let ml = tmp[((x + ss - step) & (width - 1)) + ((i + ss) & (height - 1)) * width];
+                            let m = tmp[(x + ss) % width + ((i + ss) % height) * width];
 
-                            let u = Math.floor((c + r + m + mu) / 4) + random.nextInt(val * 2) - val;
-                            let l = Math.floor((c + d + m + ml) / 4) + random.nextInt(val * 2) - val;
+                            let u = Math.trunc((c + r + m + mu) / 4) + random.nextInt(val * 2) - val;
+                            let l = Math.trunc((c + d + m + ml) / 4) + random.nextInt(val * 2) - val;
 
                             tmp[x + ss + i * width] = u;
                             tmp[x + (i + ss) * width] = l;
@@ -285,7 +287,7 @@
                 const result = new Array(width * height);
                 for (let y = 0; y < height; y++) {
                     for (let x = 0; x < width; x++) {
-                        result[x + y * width] = Math.floor(tmp[(x % width) + (y % height) * width] / 512) + 128;
+                        result[x + y * width] = Math.trunc(tmp[(x % width) + (y % height) * width] / 512) + 128;
                     }
                 }
                 return result;
@@ -624,9 +626,9 @@
             }
 
             isLit() {
-                const xTile = this.x;
-                const yTile = this.y;
-                const zTile = this.z;
+                const xTile = Math.floor(this.x);
+                const yTile = Math.floor(this.y);
+                const zTile = Math.floor(this.z);
                 return this.level.isLit(xTile, yTile, zTile);
             }
         }
@@ -653,6 +655,8 @@
                 texture.minFilter = THREE.NearestFilter;
                 texture.generateMipmaps = false;
                 texture.flipY = true;
+
+                this.currentBrightness = 0.1;
 
                 this.group = new THREE.Group();
                 this.scene = scene;
@@ -728,6 +732,18 @@
 
             render(a) {
                 const time = (performance.now() / 1000) * 10 * this.speed + this.timeOffs;
+
+                let brightness = super.isLit() ? 1.0 : 0.3;
+
+                if (brightness != this.currentBrightness) {
+                    this.currentBrightness = brightness;
+
+                    this.group.traverse((child) => {
+                        if (child.isMesh) {
+                            child.material.color.setRGB(this.currentBrightness, this.currentBrightness, this.currentBrightness);
+                        }
+                    });
+                }
 
                 const x = this.xo + (this.x - this.xo) * a;
                 const y = this.yo + (this.y - this.yo) * a;
@@ -953,7 +969,7 @@
                 this.lightDepths = new Int32Array(w * h);
                 this.levelListeners = [];
 
-                this.particleEngine
+                this.particleEngine;
 
                 this.generateMap()
 
@@ -968,7 +984,7 @@
                     const y = this.random.nextInt(this.depth);
                     const z = this.random.nextInt(this.height);
 
-                    this.tickTile(x, y, z);                    
+                    this.tickTile(x, y, z);
                 }
             }
 
@@ -1342,7 +1358,6 @@
 
         class Tile {
             static tiles = new Array(256).fill(null);
-
             static empty = null;
             static rock;
             static grass;
@@ -1388,17 +1403,17 @@
                 }
             }
 
-            renderFace(t, x, y, z, face) {
-                let brightness = 1.0;
-
-                if (face === 0) brightness = this.level.getBrightness(x, y - 1, z) * 0.5;
-                if (face === 1) brightness = this.level.getBrightness(x, y + 1, z) * 1.0;
-                if (face === 2) brightness = this.level.getBrightness(x, y, z - 1) * 0.8;
-                if (face === 3) brightness = this.level.getBrightness(x, y, z + 1) * 0.8;
-                if (face === 4) brightness = this.level.getBrightness(x - 1, y, z) * 0.6;
-                if (face === 5) brightness = this.level.getBrightness(x + 1, y, z) * 0.6;
-
-                t.color(brightness, brightness, brightness);
+            renderFace(t, x, y, z, face, nbmode = false) {
+                if (!nbmode) {
+                    let brightness = 1.0;
+                    if (face === 0) brightness = this.level.getBrightness(x, y - 1, z) * 0.5;
+                    if (face === 1) brightness = this.level.getBrightness(x, y + 1, z) * 1.0;
+                    if (face === 2) brightness = this.level.getBrightness(x, y, z - 1) * 0.8;
+                    if (face === 3) brightness = this.level.getBrightness(x, y, z + 1) * 0.8;
+                    if (face === 4) brightness = this.level.getBrightness(x - 1, y, z) * 0.6;
+                    if (face === 5) brightness = this.level.getBrightness(x + 1, y, z) * 0.6;
+                    t.color(brightness, brightness, brightness);
+                }
 
                 const tex = this.getTexture(face);
 
@@ -1452,17 +1467,17 @@
                 }
             }
 
-            renderFaceNoTexture(t, x, y, z, face) {
-                let brightness = 1.0;
-
-                if (face === 0) brightness = this.level.getBrightness(x, y - 1, z) * 0.5;
-                if (face === 1) brightness = this.level.getBrightness(x, y + 1, z) * 1.0;
-                if (face === 2) brightness = this.level.getBrightness(x, y, z - 1) * 0.8;
-                if (face === 3) brightness = this.level.getBrightness(x, y, z + 1) * 0.8;
-                if (face === 4) brightness = this.level.getBrightness(x - 1, y, z) * 0.6;
-                if (face === 5) brightness = this.level.getBrightness(x + 1, y, z) * 0.6;
-
-                t.color(brightness, brightness, brightness);
+            renderFaceNoTexture(t, x, y, z, face, nbmode = false) {
+                if (!nbmode) {
+                    let brightness = 1.0;
+                    if (face === 0) brightness = this.level.getBrightness(x, y - 1, z) * 0.5;
+                    if (face === 1) brightness = this.level.getBrightness(x, y + 1, z) * 1.0;
+                    if (face === 2) brightness = this.level.getBrightness(x, y, z - 1) * 0.8;
+                    if (face === 3) brightness = this.level.getBrightness(x, y, z + 1) * 0.8;
+                    if (face === 4) brightness = this.level.getBrightness(x - 1, y, z) * 0.6;
+                    if (face === 5) brightness = this.level.getBrightness(x + 1, y, z) * 0.6;
+                    t.color(brightness, brightness, brightness);
+                }
 
                 const x0 = x + 0.0;
                 const x1 = x + 1.0;
@@ -1847,12 +1862,18 @@
                 this.MS_PER_SECOND = 1000.0;
                 this.MAX_MS_PER_UPDATE = 1000.0;
                 this.MAX_TICKS_PER_UPDATE = 100;
+
+                this.chunkUpdatesElapsedMs = 0.0;
+                this.lastTotalChunkUpdates = 0;
+                this.chunkUpdatesPerSecond = 0;
             }
 
             advanceTime() {
                 const now = performance.now();
                 let passedMs = now - this.lastTime;
                 this.lastTime = now;
+
+                const currentTotalChunkUpdates = Chunk.updates;
 
                 if (passedMs < 0) passedMs = 0;
                 if (passedMs > this.MAX_MS_PER_UPDATE) {
@@ -1870,6 +1891,16 @@
 
                 this.passedTime -= this.ticks;
                 this.a = this.passedTime;
+
+                this.chunkUpdatesElapsedMs += passedMs;
+
+                if (this.chunkUpdatesElapsedMs >= this.MS_PER_SECOND) {
+                    this.chunkUpdatesPerSecond = currentTotalChunkUpdates - this.lastTotalChunkUpdates;
+
+                    this.lastTotalChunkUpdates = currentTotalChunkUpdates;
+
+                    this.chunkUpdatesElapsedMs -= this.MS_PER_SECOND;
+                }
             }
         }
 
@@ -1890,9 +1921,17 @@
                 this.scene = null;
                 this.camera = null;
 
+                this.guiWidth = this.width * 240 / this.height;
+                this.guiHeight = 240;
+                this.guiBlockMesh = null;
+                this.guiCamera = null;
+                this.guiScene = null;
+
                 this.fogColor = new THREE.Color(0.5, 0.8, 1.0);
 
                 this.guiCanvas = document.createElement('canvas');
+                this.guiCanvas.style.imageRendering = 'pixelated';
+                this.guiCanvas.style.imageRendering = 'crisp-edges';
                 this.guiCanvas.id = 'gui-canvas';
                 this.guiCanvas.style.position = 'absolute';
                 this.guiCanvas.style.top = '0';
@@ -1907,12 +1946,101 @@
                 this.ctx = this.guiCanvas.getContext('2d');
 
                 this.resizeCanvas();
-                window.addEventListener('resize', () => this.resizeCanvas());
+                window.addEventListener('resize', () => this.onResize());
+            }
+
+            onResize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+
+                this.resizeCanvas();
+
+                this.guiWidth = this.guiCanvas.width;
+
+                if (this.camera) {
+                    this.camera.aspect = this.width / this.height;
+                    this.camera.updateProjectionMatrix();
+                }
+
+                if (this.renderer) {
+                    this.renderer.setSize(this.width, this.height);
+                }
+
+                if (this.guiCamera) {
+                    this.guiCamera.right = this.guiWidth;
+                    this.guiCamera.top = 0;
+                    this.guiCamera.bottom = 240;
+                    this.guiCamera.updateProjectionMatrix();
+                }
             }
 
             resizeCanvas() {
-                this.guiCanvas.width = window.innerWidth;
-                this.guiCanvas.height = window.innerHeight;
+                this.guiCanvas.height = 1080;
+                this.guiCanvas.width = (window.innerWidth * this.guiCanvas.height) / window.innerHeight;
+            }
+
+            renderGUIBlock() {
+                if (this.isCapturingScreenshot) return;
+                if (this.guiBlockMesh) {
+                    this.guiBlockMesh.position.set(this.guiWidth - 12, 12, 0);
+                }
+
+                if (this.guiBlockMesh) {
+                    this.renderer.autoClear = false;
+                    this.renderer.render(this.guiScene, this.guiCamera);
+                    this.renderer.autoClear = true;
+                }
+            }
+
+            updateGUIBlock() {
+                if (!this.guiScene) return;
+
+                if (!this.levelRenderer || !this.level.texture) return;
+
+                if (this.guiBlockMesh) {
+                    this.guiScene.remove(this.guiBlockMesh);
+                    this.guiBlockMesh.geometry.dispose();
+                }
+
+                const selectedBlockId = this.paintTexture;
+                const t = new Tesselator();
+                t.init();
+
+                const tile = Tile.tiles[selectedBlockId];
+                if (!tile) return;
+
+                for (let face = 0; face < 6; face++) {
+                    let c = 1.0;
+                    if (face === 0) c = 0.5;
+                    if (face === 1) c = 1.0;
+                    if (face === 2 || face === 3) c = 0.8;
+                    if (face === 4 || face === 5) c = 0.6;
+
+                    t.color(c, c, c);
+
+                    tile.renderFace(t, 0, 0, 0, face, true);
+                }
+
+                const geometry = t.createGeometry();
+
+                const guiMaterial = new THREE.MeshBasicMaterial({
+                    map: this.level.texture,
+                    vertexColors: true,
+                    transparent: true,
+                    alphaTest: 0.5
+                });
+
+                this.guiBlockMesh = new THREE.Mesh(geometry, guiMaterial);
+
+                this.guiBlockMesh.scale.set(-10, -10, 10);
+
+                this.guiBlockMesh.geometry.translate(-0.5, -0.5, -0.5);
+
+                this.guiBlockMesh.rotation.reorder('XYZ');
+                this.guiBlockMesh.rotation.x = THREE.MathUtils.degToRad(35);
+                this.guiBlockMesh.rotation.y = THREE.MathUtils.degToRad(50);
+
+                this.guiScene.add(this.guiBlockMesh);
             }
 
             renderGUI() {
@@ -1920,6 +2048,7 @@
                 const h = this.guiCanvas.height;
 
                 this.ctx.clearRect(0, 0, w, h);
+
                 this.ctx.imageSmoothingEnabled = false;
 
                 this.ctx.save();
@@ -1939,41 +2068,16 @@
                 this.ctx.stroke();
                 this.ctx.restore();
 
-                const textureSource = this.terrain_texture || (this.level && this.level.texture);
-                const img = textureSource ? textureSource.image : null;
-
-                if (img && img.complete) {
-                    this.ctx.save();
-
-                    const size = 50;
-                    const boxX = w - size - 20;
-                    const boxY = 20;
-
-                    let textureIndex = Tile.tiles[this.paintTexture].getTexture(2);
-
-                    const texX = (textureIndex % 16) * 16;
-                    const texY = Math.floor(textureIndex / 16) * 16;
-
-                    const borderWidth = 0
-                    this.ctx.fillStyle = '#000000';
-                    this.ctx.fillRect(boxX - borderWidth / 2, boxY - borderWidth / 2, size + borderWidth, size + borderWidth);
-
-                    this.ctx.drawImage(
-                        img,
-                        texX, texY, 16, 16,
-                        boxX, boxY, size, size
-                    );
-
-                    this.ctx.restore();
-                }
-
-                this.ctx.font = "20px 'MinecraftFont'";
+                this.ctx.font = "22px 'MinecraftFont'";
                 this.ctx.fillStyle = "white";
 
                 this.ctx.fillText('Minecraft RD-160052 Port', 20, 30);
                 this.ctx.fillText(`XYZ: ${this.player.x.toFixed(2)} / ${this.player.y.toFixed(2)} / ${this.player.z.toFixed(2)}`, 20, 55);
+                this.ctx.fillText(`FPS: ${this.timer.fps.toFixed(0)} / Chunk Updates: ${this.timer.chunkUpdatesPerSecond}`, 20, 80);
 
                 this.ctx.shadowColor = 'transparent';
+
+                this.renderGUIBlock();
             }
 
             init() {
@@ -1986,6 +2090,10 @@
                     this.camera.aspect = window.innerWidth / window.innerHeight;
                     this.camera.updateProjectionMatrix();
                     this.renderer.setSize(window.innerWidth, window.innerHeight);
+
+                    this.guiWidth = this.width * 240 / this.height;
+                    this.guiCamera.right = this.guiWidth;
+                    this.guiCamera.updateProjectionMatrix();
                 });
 
                 this.scene = new THREE.Scene();
@@ -2010,6 +2118,13 @@
 
                 this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.05, 1000.0);
 
+                this.guiScene = new THREE.Scene();
+
+                this.guiWidth = (this.width * 240) / this.height;
+                this.guiCamera = new THREE.OrthographicCamera(0, this.guiWidth, 0, 240, -100, 100);
+                this.guiCamera.position.set(0, 0, 50);
+                this.guiCamera.lookAt(0, 0, 0);
+
                 this.level = new Level(256, 256, 64);
                 this.levelRenderer = new LevelRenderer(this.level, this.scene);
                 this.particleEngine = new ParticleEngine(this.level, this.scene, this.level.texture);
@@ -2023,6 +2138,8 @@
                 }
 
                 this.setupControls();
+
+                this.updateGUIBlock();
 
                 this.render();
             }
@@ -2083,15 +2200,54 @@
             }
 
             takeScreenshot() {
-                const canvas = this.renderer.domElement;
-                const dataURL = canvas.toDataURL('image/png');
+                const superSamplingFactor = 5;
+                const screenshotWidth = this.width * superSamplingFactor;
+                const screenshotHeight = this.height * superSamplingFactor;
+
+                const renderTarget = new THREE.WebGLRenderTarget(screenshotWidth, screenshotHeight, {
+                    minFilter: THREE.NearestFilter,
+                    format: THREE.RGBAFormat
+                });
+
+                this.renderer.setRenderTarget(renderTarget);
+
+                this.renderer.setClearColor(this.fogColor);
+                this.renderer.clear();
+
+                this.levelRenderer.render(this.player, 0);
+                this.levelRenderer.render(this.player, 1);
+                this.particleEngine.render(this.player, this.timer.a);
+                this.zombies.forEach(z => z.render(this.timer.a));
+
+                this.renderer.render(this.scene, this.camera);
+
+                this.renderer.setRenderTarget(null);
+
+                const canvas2d = document.createElement('canvas');
+                canvas2d.width = screenshotWidth;
+                canvas2d.height = screenshotHeight;
+                const ctx2d = canvas2d.getContext('2d');
+
+                const buffer = new Uint8Array(screenshotWidth * screenshotHeight * 4);
+                this.renderer.readRenderTargetPixels(renderTarget, 0, 0, screenshotWidth, screenshotHeight, buffer);
+
+                const imageData = ctx2d.createImageData(screenshotWidth, screenshotHeight);
+                for (let y = 0; y < screenshotHeight; y++) {
+                    const srcRow = (screenshotHeight - 1 - y) * screenshotWidth * 4;
+                    const destRow = y * screenshotWidth * 4;
+                    for (let x = 0; x < screenshotWidth * 4; x++) {
+                        imageData.data[destRow + x] = buffer[srcRow + x];
+                    }
+                }
+                ctx2d.putImageData(imageData, 0, 0);
+
+                const dataURL = canvas2d.toDataURL('image/png');
                 const link = document.createElement('a');
-                link.download = 'screenshot.png';
+                link.download = `minecraft-screenshot-${Date.now()}.png`;
                 link.href = dataURL;
-                document.body.appendChild(link);
                 link.click();
-                document.body.removeChild(link);
-                console.log('Screenshot taken');
+
+                renderTarget.dispose();
             }
 
             pick(distance = 5.0) {
@@ -2209,17 +2365,21 @@
                     if (e.code === 'KeyO') {
                         this.takeScreenshot();
                     }
-                    if (e.code === 'Digit1'|| e.code === 'Numpad1') {
+                    if (e.code === 'Digit1' || e.code === 'Numpad1') {
                         this.paintTexture = 2;
+                        this.updateGUIBlock();
                     }
-                    if (e.code === 'Digit2'|| e.code === 'Numpad2') {
+                    if (e.code === 'Digit2' || e.code === 'Numpad2') {
                         this.paintTexture = 3;
+                        this.updateGUIBlock();
                     }
-                    if (e.code === 'Digit3'|| e.code === 'Numpad3') {
+                    if (e.code === 'Digit3' || e.code === 'Numpad3') {
                         this.paintTexture = 4;
+                        this.updateGUIBlock();
                     }
-                    if (e.code === 'Digit4'|| e.code === 'Numpad4') {
+                    if (e.code === 'Digit4' || e.code === 'Numpad4') {
                         this.paintTexture = 5;
+                        this.updateGUIBlock();
                     }
                 });
 
@@ -2243,6 +2403,7 @@
                     if (currentIndex < 0) currentIndex = validTileIds.length - 1;
 
                     this.paintTexture = validTileIds[currentIndex];
+                    this.updateGUIBlock()
                 }, { passive: true });
 
                 window.addEventListener('contextmenu', e => e.preventDefault());
