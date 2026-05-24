@@ -11,8 +11,8 @@ JS Port of minecraft version rd-160052 with three.js as renderer
 * R           - Random Teleport
 * G           - Spawn Steve
 * O           - Take screenshot
-* Enter       - Save .rdworld
-* INSERT      - Load .rdworld
+* Enter       - Save level.dat
+* INSERT      - Load level.dat
 * Mouse wheel - Select block
 * LMB         - Destroy block
 * RMB         - Place block
