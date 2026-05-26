@@ -794,12 +794,17 @@
                 const speed = (Math.random() + Math.random() + 1.0) * 0.15;
                 const dd = Math.sqrt(this.xd * this.xd + this.yd * this.yd + this.zd * this.zd);
 
-                this.xd = (this.xd / dd) * speed * 0.7;
-                this.yd = (this.yd / dd) * speed;
-                this.zd = (this.zd / dd) * speed * 0.7;
+                this.xd = (this.xd / dd) * speed * 0.4;
+                this.yd = (this.yd / dd) * speed * 0.4 + 0.1;
+                this.zd = (this.zd / dd) * speed * 0.4;
 
                 this.uo = Math.random() * 3.0;
                 this.vo = Math.random() * 3.0;
+
+                this.size = Math.random() * 0.5 + 0.5;
+
+                this.lifetime = Math.floor(4.0 / (Math.random() * 0.9 + 0.1));
+                this.age = 0;
             }
 
             tick() {
@@ -807,12 +812,12 @@
                 this.yo = this.y;
                 this.zo = this.z;
 
-                if (Math.random() < 0.1) {
+                if (this.age++ >= this.lifetime) {
                     this.removed = true;
                     return;
                 }
 
-                this.yd -= 0.06;
+                this.yd -= 0.04;
                 this.move(this.xd, this.yd, this.zd);
 
                 this.xd *= 0.98;
@@ -833,7 +838,7 @@
                 const v0 = (Math.floor(this.tex / 16) + this.vo / 4.0) / 16.0;
                 const v1 = v0 + uvStep;
 
-                const r = 0.1;
+                const r = 0.1 * this.size;
 
                 const px = this.xo + (this.x - this.xo) * a;
                 const py = this.yo + (this.y - this.yo) * a;
@@ -842,10 +847,10 @@
                 const brightness = this.level.getBrightness(Math.floor(px), Math.floor(py), Math.floor(pz));
                 t.color(brightness, brightness, brightness);
 
-                t.vertexUV(px - xa * r - yxa * r, py - yya * r, pz - za * r - yza * r, u0, v0);
-                t.vertexUV(px - xa * r + yxa * r, py + yya * r, pz - za * r + yza * r, u0, v1);
-                t.vertexUV(px + xa * r + yxa * r, py + yya * r, pz + za * r + yza * r, u1, v1);
-                t.vertexUV(px + xa * r - yxa * r, py - yya * r, pz + za * r - yza * r, u1, v0);
+                t.vertexUV(px - xa * r - yxa * r, py - yya * r, pz - za * r - yza * r, u0, v1);
+                t.vertexUV(px - xa * r + yxa * r, py + yya * r, pz - za * r + yza * r, u0, v0);
+                t.vertexUV(px + xa * r + yxa * r, py + yya * r, pz + za * r + yza * r, u1, v0);
+                t.vertexUV(px + xa * r - yxa * r, py - yya * r, pz + za * r - yza * r, u1, v1);
             }
         }
 
@@ -916,7 +921,7 @@
                     p.render(this.tesselator, a, xa, za, yxa, yya, yza);
                 }
 
-                const newGeo = this.tesselator.createGeometry();
+                const newGeo = this.tesselator.flush();
                 if (newGeo) {
                     this.mesh.geometry.dispose();
                     this.mesh.geometry = newGeo;
@@ -1344,7 +1349,7 @@
                 }
             }
 
-            createGeometry() {
+            flush() {
                 if (this.vertexCount === 0) return null;
                 const geometry = new THREE.BufferGeometry();
                 geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
@@ -1668,7 +1673,7 @@
                 }
 
                 if (this.t.vertexCount > 0) {
-                    const newGeometry = this.t.createGeometry();
+                    const newGeometry = this.t.flush();
                     if (newGeometry) {
                         this.meshes[layer].geometry = newGeometry;
                         this.meshes[layer].material = this.material;
@@ -1904,6 +1909,130 @@
             }
         }
 
+        class BitmapFont {
+            constructor(ctx, texturePath) {
+                this.charWidths = new Int32Array(256);
+                this.fontImage = new Image();
+                this.isReady = false;
+                this.ctx = ctx;
+
+                this.fontImage.onload = () => {
+                    this._analyzeCharWidths();
+                };
+                this.fontImage.src = texturePath;
+            }
+
+            _analyzeCharWidths() {
+                const w = this.fontImage.width;
+                const h = this.fontImage.height;
+
+                const offscreenCanvas = document.createElement('canvas');
+                offscreenCanvas.width = w;
+                offscreenCanvas.height = h;
+                const offscreenCtx = offscreenCanvas.getContext('2d');
+                offscreenCtx.drawImage(this.fontImage, 0, 0);
+
+                const imgData = offscreenCtx.getImageData(0, 0, w, h);
+                const rawPixels = imgData.data;
+
+                for (let i = 0; i < 128; i++) {
+                    let xt = i % 16;
+                    let yt = Math.floor(i / 16);
+
+                    let x = 0;
+                    let emptyColumn = false;
+
+                    for (; x < 8 && !emptyColumn; x++) {
+                        let xPixel = xt * 8 + x;
+                        emptyColumn = true;
+
+                        for (let y = 0; y < 8 && emptyColumn; y++) {
+                            let yPixel = (yt * 8 + y) * w;
+                            let idx = (xPixel + yPixel) * 4;
+
+                            let alpha = rawPixels[idx + 3];
+                            let r = rawPixels[idx];
+                            if (alpha > 128 || r > 128) {
+                                emptyColumn = false;
+                            }
+                        }
+                    }
+
+                    if (i === 32) x = 4;
+                    this.charWidths[i] = x;
+                }
+                this.isReady = true;
+            }
+
+            drawText(text, x, y, shadow = false, scale = 1, hexColor = 0xFFFFFF) {
+                if (!this.isReady) return;
+                const originalSmoothing = this.ctx.imageSmoothingEnabled;
+                this.ctx.imageSmoothingEnabled = false;
+
+                if (shadow) {
+                    let r = (hexColor >> 16) & 0xFF;
+                    let g = (hexColor >> 8) & 0xFF;
+                    let b = hexColor & 0xFF;
+
+                    r = Math.floor(r / 4);
+                    g = Math.floor(g / 4);
+                    b = Math.floor(b / 4);
+
+                    const shadowColorStr = `rgb(${r},${g},${b})`;
+
+                    this.ctx.save();
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = this.guiCanvas ? this.guiCanvas.width : window.innerWidth;
+                    tempCanvas.height = 8 * scale;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.imageSmoothingEnabled = false;
+
+                    let oldCtx = this.ctx;
+                    this.ctx = tempCtx;
+                    this._renderTextString(text, 0, 0, scale);
+                    this.ctx = oldCtx;
+
+                    tempCtx.globalCompositeOperation = 'source-in';
+                    tempCtx.fillStyle = shadowColorStr;
+                    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+                    this.ctx.drawImage(tempCanvas, x + scale, y + scale);
+                    this.ctx.restore();
+                }
+
+                this._renderTextString(text, x, y, scale);
+
+                this.ctx.imageSmoothingEnabled = originalSmoothing;
+            }
+
+            _renderTextString(text, x, y, scale) {
+                let xo = 0;
+
+                for (let i = 0; i < text.length; i++) {
+                    const charCode = text.charCodeAt(i);
+
+                    if (text.charAt(i) === '§' && i + 1 < text.length) {
+                        i++;
+                        continue;
+                    }
+
+                    const srcX = (charCode % 16) * 8;
+                    const srcY = Math.floor(charCode / 16) * 8;
+
+                    const charWidth = this.charWidths[charCode] || 0;
+
+                    if (charWidth > 0) {
+                        this.ctx.drawImage(
+                            this.fontImage,
+                            srcX, srcY, 8, 8,
+                            x + xo, y, 8 * scale, 8 * scale
+                        );
+                    }
+                    xo += charWidth * scale;
+                }
+            }
+        }
+
         class RubyDung {
             constructor() {
                 this.width = window.innerWidth;
@@ -1944,6 +2073,7 @@
                 document.body.appendChild(this.guiCanvas);
 
                 this.ctx = this.guiCanvas.getContext('2d');
+                this.bitmap_font = new BitmapFont(this.ctx, "./assets/fonts/default.gif");
 
                 this.resizeCanvas();
                 window.addEventListener('resize', () => this.onResize());
@@ -1975,7 +2105,7 @@
             }
 
             resizeCanvas() {
-                this.guiCanvas.height = 1080;
+                this.guiCanvas.height = 1440;
                 this.guiCanvas.width = (window.innerWidth * this.guiCanvas.height) / window.innerHeight;
             }
 
@@ -2021,7 +2151,7 @@
                     tile.renderFace(t, 0, 0, 0, face, true);
                 }
 
-                const geometry = t.createGeometry();
+                const geometry = t.flush();
 
                 const guiMaterial = new THREE.MeshBasicMaterial({
                     map: this.level.texture,
@@ -2054,9 +2184,10 @@
                 this.ctx.save();
                 this.ctx.globalCompositeOperation = 'difference';
                 this.ctx.strokeStyle = '#ffffff';
-                this.ctx.lineWidth = 2;
+                this.ctx.lineWidth = 3;
+                this.ctx.imageSmoothingEnabled = false;
 
-                const crosshairSize = 8;
+                const crosshairSize = 12;
                 const centerX = w / 2;
                 const centerY = h / 2;
 
@@ -2071,9 +2202,9 @@
                 this.ctx.font = "22px 'MinecraftFont'";
                 this.ctx.fillStyle = "white";
 
-                this.ctx.fillText('Minecraft RD-160052 Port', 20, 30);
-                this.ctx.fillText(`XYZ: ${this.player.x.toFixed(2)} / ${this.player.y.toFixed(2)} / ${this.player.z.toFixed(2)}`, 20, 55);
-                this.ctx.fillText(`FPS: ${this.timer.fps.toFixed(0)} / Chunk Updates: ${this.timer.chunkUpdatesPerSecond}`, 20, 80);
+                this.bitmap_font.drawText('rd 160052 Port', 20, 20, true, 3, 0xFFFFFF);
+                this.bitmap_font.drawText(`${this.timer.fps.toFixed(0)} fps, ${this.timer.chunkUpdatesPerSecond} chunk updates`, 20, 50, true, 3, 0xFFFFFF);
+                //this.bitmap_font.drawText(`${this.player.x.toFixed(2)} X ${(this.player.y-0.62).toFixed(2)} Y ${this.player.z.toFixed(2)} Z`, 20, 80, true, 3, 0xFFFFFF);
 
                 this.ctx.shadowColor = 'transparent';
 
