@@ -2199,14 +2199,9 @@
                 this.ctx.stroke();
                 this.ctx.restore();
 
-                this.ctx.font = "22px 'MinecraftFont'";
-                this.ctx.fillStyle = "white";
-
                 this.bitmap_font.drawText('rd 160052 Port', 20, 20, true, 3, 0xFFFFFF);
                 this.bitmap_font.drawText(`${this.timer.fps.toFixed(0)} fps, ${this.timer.chunkUpdatesPerSecond} chunk updates`, 20, 50, true, 3, 0xFFFFFF);
                 //this.bitmap_font.drawText(`${this.player.x.toFixed(2)} X ${(this.player.y-0.62).toFixed(2)} Y ${this.player.z.toFixed(2)} Z`, 20, 80, true, 3, 0xFFFFFF);
-
-                this.ctx.shadowColor = 'transparent';
 
                 this.renderGUIBlock();
             }
