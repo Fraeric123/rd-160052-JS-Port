@@ -5,36 +5,30 @@
     <meta charset="UTF-8">
     <title>rd-160052</title>
     <style>
-        @font-face {
-            font-family: 'MinecraftFont';
-            src: url('./assets/fonts/minfont.otf') format('opentype');
-        }
-
-        body {
+        body,
+        html {
             margin: 0;
+            padding: 0;
             overflow: hidden;
-            background: #000;
+            background-color: #000;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         canvas {
             display: block;
-        }
-
-        #ui {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: white;
-            font-family: 'MinecraftFont', monospace;
-            pointer-events: none;
-            text-shadow: 1px 1px 2px black;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }
     </style>
 </head>
 
 <body>
     <script type="module">
-        import * as THREE from './libs/three.module.js';
+        import * as THREE from './libs/three.module.min.js';
 
         class Vec3 {
             constructor(x, y, z) {
@@ -633,6 +627,21 @@
             }
         }
 
+        class Textures {
+            static loadTexture(path, generateMipmaps = false, flipY = true) {
+                const loader = new THREE.TextureLoader();
+                const texture = loader.load(path);
+                texture.magFilter = THREE.NearestFilter;
+                texture.minFilter = THREE.NearestFilter;
+                texture.generateMipmaps = generateMipmaps;
+                texture.flipY = flipY;
+                return texture;
+            }
+        }
+
+        const zombie_texture = Textures.loadTexture('./assets/textures/char.png');
+        const terrain_atlas_texture = Textures.loadTexture('./assets/textures/terrain.png');
+
         class Zombie extends Entity {
             constructor(level, x, y, z, scene) {
                 super(level);
@@ -648,13 +657,6 @@
                 this.timeOffs = Math.random() * 1239813;
                 this.rot = Math.random() * Math.PI * 2;
                 this.speed = 1.0;
-
-                const texture = Textures.loadTexture('./assets/textures/char.png');
-
-                texture.magFilter = THREE.NearestFilter;
-                texture.minFilter = THREE.NearestFilter;
-                texture.generateMipmaps = false;
-                texture.flipY = true;
 
                 this.currentBrightness = 0.1;
 
@@ -684,12 +686,12 @@
                 this.leg1.addBox(-2, 0, -2, 4, 12, 4);
                 this.leg1.setPos(2, 12, 0);
 
-                this.head.createMesh(texture, this.group);
-                this.body.createMesh(texture, this.group);
-                this.arm0.createMesh(texture, this.group);
-                this.arm1.createMesh(texture, this.group);
-                this.leg0.createMesh(texture, this.group);
-                this.leg1.createMesh(texture, this.group);
+                this.head.createMesh(zombie_texture, this.group);
+                this.body.createMesh(zombie_texture, this.group);
+                this.arm0.createMesh(zombie_texture, this.group);
+                this.arm1.createMesh(zombie_texture, this.group);
+                this.leg0.createMesh(zombie_texture, this.group);
+                this.leg1.createMesh(zombie_texture, this.group);
             }
 
             tick() {
@@ -929,16 +931,6 @@
             }
         }
 
-        class Textures {
-            static loadTexture(path) {
-                const loader = new THREE.TextureLoader();
-                const texture = loader.load(path);
-                texture.magFilter = THREE.NearestFilter;
-                texture.minFilter = THREE.NearestFilter;
-                return texture;
-            }
-        }
-
         class HitResult {
             constructor(x, y, z, o, f) {
                 this.x = x;
@@ -959,12 +951,8 @@
 
                 this.random = new JavaRandom(this.seed);
 
-                this.texture = Textures.loadTexture("./assets/textures/terrain.png");
-                this.texture.flipY = true;
-                this.texture.magFilter = THREE.NearestFilter;
-                this.texture.minFilter = THREE.NearestFilter;
                 this.material = new THREE.MeshBasicMaterial({
-                    map: this.texture,
+                    map: terrain_atlas_texture,
                     vertexColors: true,
                     transparent: true,
                     alphaTest: 0.5
@@ -1854,14 +1842,16 @@
         }
 
         class Timer {
-            constructor(ticksPerSecond) {
+            constructor(ticksPerSecond, minecraft) {
                 this.ticksPerSecond = ticksPerSecond;
                 this.lastTime = performance.now();
+                this.minecraft = minecraft;
 
                 this.ticks = 0;
                 this.a = 0.0;
                 this.timeScale = 1.0;
                 this.fps = 0.0;
+                this.calmfps = 0.0;
                 this.passedTime = 0.0;
 
                 this.MS_PER_SECOND = 1000.0;
@@ -1903,6 +1893,7 @@
                     this.chunkUpdatesPerSecond = currentTotalChunkUpdates - this.lastTotalChunkUpdates;
 
                     this.lastTotalChunkUpdates = currentTotalChunkUpdates;
+                    this.calmfps = this.fps;
 
                     this.chunkUpdatesElapsedMs -= this.MS_PER_SECOND;
                 }
@@ -1964,7 +1955,7 @@
                 this.isReady = true;
             }
 
-            drawText(text, x, y, shadow = false, scale = 1, hexColor = 0xFFFFFF) {
+            drawText(text, x, y, shadow = true, scale = 3, hexColor = 0xFFFFFF) {
                 if (!this.isReady) return;
                 const originalSmoothing = this.ctx.imageSmoothingEnabled;
                 this.ctx.imageSmoothingEnabled = false;
@@ -2033,194 +2024,133 @@
             }
         }
 
+        class CanvasRenderer {
+            constructor(engine) {
+                this.engine = engine;
+                this.canvas = document.createElement('canvas');
+                document.body.appendChild(this.canvas);
+                this.ctx = this.canvas.getContext('2d');
+                this.renderCanvas = document.createElement('canvas');
+
+                this.BASE_WIDTH = 2560;
+                this.BASE_HEIGHT = 1440;
+
+                this.SCALE_FACTOR = 1;
+
+                this.VIRTUAL_WIDTH = this.BASE_WIDTH * this.SCALE_FACTOR;
+                this.VIRTUAL_HEIGHT = this.BASE_HEIGHT * this.SCALE_FACTOR;
+
+                this.canvas.width = this.VIRTUAL_WIDTH;
+                this.canvas.height = this.VIRTUAL_HEIGHT;
+                this.renderCanvas.width = this.VIRTUAL_WIDTH;
+                this.renderCanvas.height = this.VIRTUAL_HEIGHT;
+
+                this.engine.renderer = new THREE.WebGLRenderer({ canvas: this.renderCanvas, antialias: false, alpha: false });
+                this.engine.renderer.setSize(this.VIRTUAL_WIDTH, this.VIRTUAL_HEIGHT);
+                this.engine.renderer.setPixelRatio(window.devicePixelRatio);
+                this.engine.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+
+                this.resize = this.resize.bind(this);
+                this.resize();
+                window.addEventListener('resize', this.resize);
+            }
+
+            resize() {
+                const targetAspect = this.VIRTUAL_WIDTH / this.VIRTUAL_HEIGHT;
+                const windowWidth = window.innerWidth;
+                const windowHeight = window.innerHeight;
+                const windowAspect = windowWidth / windowHeight;
+
+                let displayWidth, displayHeight;
+
+                if (windowAspect > targetAspect) {
+                    displayHeight = windowHeight;
+                    displayWidth = windowHeight * targetAspect;
+                } else {
+                    displayWidth = windowWidth;
+                    displayHeight = windowWidth / targetAspect;
+                }
+
+                this.canvas.style.width = displayWidth + 'px';
+                this.canvas.style.height = displayHeight + 'px';
+
+                this.ctx.imageSmoothingEnabled = false;
+            }
+
+            render() {
+                this.engine.renderer.render(this.engine.scene, this.engine.camera);
+                this.ctx.clearRect(0, 0, this.VIRTUAL_WIDTH, this.VIRTUAL_HEIGHT);
+                this.ctx.drawImage(this.renderCanvas, 0, 0);
+                this.engine.renderGUI();
+            }
+        }
+
         class RubyDung {
             constructor() {
-                this.width = window.innerWidth;
-                this.height = window.innerHeight;
-
                 this.timer = new Timer(20.0);
+
                 this.level = null;
                 this.levelRenderer = null;
                 this.player = null;
                 this.zombies = [];
 
                 this.paintTexture = Tile.rock.id;
+                
+                this.lastPaintTexture = null;
+                this.blockPreview = null;
 
                 this.renderer = null;
                 this.scene = null;
                 this.camera = null;
-
-                this.guiWidth = this.width * 240 / this.height;
-                this.guiHeight = 240;
-                this.guiBlockMesh = null;
-                this.guiCamera = null;
-                this.guiScene = null;
+                this.canvas_renderer = new CanvasRenderer(this);
+                this.ctx = this.canvas_renderer.ctx;
 
                 this.fogColor = new THREE.Color(0.5, 0.8, 1.0);
 
-                this.guiCanvas = document.createElement('canvas');
-                this.guiCanvas.style.imageRendering = 'pixelated';
-                this.guiCanvas.style.imageRendering = 'crisp-edges';
-                this.guiCanvas.id = 'gui-canvas';
-                this.guiCanvas.style.position = 'absolute';
-                this.guiCanvas.style.top = '0';
-                this.guiCanvas.style.left = '0';
-                this.guiCanvas.style.width = '100%';
-                this.guiCanvas.style.height = '100%';
-                this.guiCanvas.style.backgroundColor = 'transparent';
-                this.guiCanvas.style.pointerEvents = 'auto';
-
-                document.body.appendChild(this.guiCanvas);
-
-                this.ctx = this.guiCanvas.getContext('2d');
-                this.bitmap_font = new BitmapFont(this.ctx, "./assets/fonts/default.gif");
-
-                this.resizeCanvas();
-                window.addEventListener('resize', () => this.onResize());
-            }
-
-            onResize() {
-                this.width = window.innerWidth;
-                this.height = window.innerHeight;
-
-                this.resizeCanvas();
-
-                this.guiWidth = this.guiCanvas.width;
-
-                if (this.camera) {
-                    this.camera.aspect = this.width / this.height;
-                    this.camera.updateProjectionMatrix();
-                }
-
-                if (this.renderer) {
-                    this.renderer.setSize(this.width, this.height);
-                }
-
-                if (this.guiCamera) {
-                    this.guiCamera.right = this.guiWidth;
-                    this.guiCamera.top = 0;
-                    this.guiCamera.bottom = 240;
-                    this.guiCamera.updateProjectionMatrix();
-                }
-            }
-
-            resizeCanvas() {
-                this.guiCanvas.height = 1440;
-                this.guiCanvas.width = (window.innerWidth * this.guiCanvas.height) / window.innerHeight;
-            }
-
-            renderGUIBlock() {
-                if (this.isCapturingScreenshot) return;
-                if (this.guiBlockMesh) {
-                    this.guiBlockMesh.position.set(this.guiWidth - 12, 12, 0);
-                }
-
-                if (this.guiBlockMesh) {
-                    this.renderer.autoClear = false;
-                    this.renderer.render(this.guiScene, this.guiCamera);
-                    this.renderer.autoClear = true;
-                }
-            }
-
-            updateGUIBlock() {
-                if (!this.guiScene) return;
-
-                if (!this.levelRenderer || !this.level.texture) return;
-
-                if (this.guiBlockMesh) {
-                    this.guiScene.remove(this.guiBlockMesh);
-                    this.guiBlockMesh.geometry.dispose();
-                }
-
-                const selectedBlockId = this.paintTexture;
-                const t = new Tesselator();
-                t.init();
-
-                const tile = Tile.tiles[selectedBlockId];
-                if (!tile) return;
-
-                for (let face = 0; face < 6; face++) {
-                    let c = 1.0;
-                    if (face === 0) c = 0.5;
-                    if (face === 1) c = 1.0;
-                    if (face === 2 || face === 3) c = 0.8;
-                    if (face === 4 || face === 5) c = 0.6;
-
-                    t.color(c, c, c);
-
-                    tile.renderFace(t, 0, 0, 0, face, true);
-                }
-
-                const geometry = t.flush();
-
-                const guiMaterial = new THREE.MeshBasicMaterial({
-                    map: this.level.texture,
-                    vertexColors: true,
-                    transparent: true,
-                    alphaTest: 0.5
-                });
-
-                this.guiBlockMesh = new THREE.Mesh(geometry, guiMaterial);
-
-                this.guiBlockMesh.scale.set(-10, -10, 10);
-
-                this.guiBlockMesh.geometry.translate(-0.5, -0.5, -0.5);
-
-                this.guiBlockMesh.rotation.reorder('XYZ');
-                this.guiBlockMesh.rotation.x = THREE.MathUtils.degToRad(35);
-                this.guiBlockMesh.rotation.y = THREE.MathUtils.degToRad(50);
-
-                this.guiScene.add(this.guiBlockMesh);
+                this.bitmap_font = new BitmapFont(this.ctx, './assets/fonts/default.gif');
             }
 
             renderGUI() {
-                const w = this.guiCanvas.width;
-                const h = this.guiCanvas.height;
+                const w = this.canvas_renderer.VIRTUAL_WIDTH;
+                const h = this.canvas_renderer.VIRTUAL_HEIGHT;
 
-                this.ctx.clearRect(0, 0, w, h);
+                const crosshairSize = 12;       
+                const crosshairLineWidth = 3;  
+                const gap = 0;                
 
-                this.ctx.imageSmoothingEnabled = false;
+                const centerX = w / 2;
+                const centerY = h / 2;
 
                 this.ctx.save();
                 this.ctx.globalCompositeOperation = 'difference';
                 this.ctx.strokeStyle = '#ffffff';
-                this.ctx.lineWidth = 3;
-                this.ctx.imageSmoothingEnabled = false;
-
-                const crosshairSize = 12;
-                const centerX = w / 2;
-                const centerY = h / 2;
-
+                this.ctx.lineWidth = crosshairLineWidth;
                 this.ctx.beginPath();
                 this.ctx.moveTo(centerX - crosshairSize, centerY);
+                this.ctx.lineTo(centerX - gap, centerY);
+                this.ctx.moveTo(centerX + gap, centerY);
                 this.ctx.lineTo(centerX + crosshairSize, centerY);
                 this.ctx.moveTo(centerX, centerY - crosshairSize);
+                this.ctx.lineTo(centerX, centerY - gap);
+                this.ctx.moveTo(centerX, centerY + gap);
                 this.ctx.lineTo(centerX, centerY + crosshairSize);
                 this.ctx.stroke();
                 this.ctx.restore();
 
-                this.bitmap_font.drawText('rd 160052 Port', 20, 20, true, 3, 0xFFFFFF);
-                this.bitmap_font.drawText(`${this.timer.fps.toFixed(0)} fps, ${this.timer.chunkUpdatesPerSecond} chunk updates`, 20, 50, true, 3, 0xFFFFFF);
-                //this.bitmap_font.drawText(`${this.player.x.toFixed(2)} X ${(this.player.y-0.62).toFixed(2)} Y ${this.player.z.toFixed(2)} Z`, 20, 80, true, 3, 0xFFFFFF);
+                this.bitmap_font.drawText('rd 160052 Port', 20, 20);
+                this.bitmap_font.drawText(`${this.timer.calmfps.toFixed(0)} fps, ${this.timer.chunkUpdatesPerSecond} chunk updates`, 20, 50);
+                this.bitmap_font.drawText(`${this.player.x.toFixed(2)} X ${(this.player.y-0.62).toFixed(2)} Y ${this.player.z.toFixed(2)} Z`, 20, 80);
 
-                this.renderGUIBlock();
+                if (this.blockPreview) {
+                    this.ctx.drawImage(this.blockPreview, w - 128 - 20, 20, 128, 128);
+                }
             }
 
             init() {
-                this.renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
-                this.renderer.setSize(this.width, this.height);
-                this.renderer.setClearColor(this.fogColor);
-                this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-                document.body.appendChild(this.renderer.domElement);
-                window.addEventListener('resize', () => {
-                    this.camera.aspect = window.innerWidth / window.innerHeight;
-                    this.camera.updateProjectionMatrix();
-                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                const w = this.canvas_renderer.VIRTUAL_WIDTH;
+                const h = this.canvas_renderer.VIRTUAL_HEIGHT;
 
-                    this.guiWidth = this.width * 240 / this.height;
-                    this.guiCamera.right = this.guiWidth;
-                    this.guiCamera.updateProjectionMatrix();
-                });
+                this.renderer.setClearColor(this.fogColor);
 
                 this.scene = new THREE.Scene();
                 //this.scene.fog = new THREE.FogExp2(this.fogColor, 0.01);
@@ -2242,18 +2172,11 @@
 
                 this.scene.add(this.selectionMesh);
 
-                this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.05, 1000.0);
-
-                this.guiScene = new THREE.Scene();
-
-                this.guiWidth = (this.width * 240) / this.height;
-                this.guiCamera = new THREE.OrthographicCamera(0, this.guiWidth, 0, 240, -100, 100);
-                this.guiCamera.position.set(0, 0, 50);
-                this.guiCamera.lookAt(0, 0, 0);
+                this.camera = new THREE.PerspectiveCamera(70, w / h, 0.01, 1000.0);
 
                 this.level = new Level(256, 256, 64);
                 this.levelRenderer = new LevelRenderer(this.level, this.scene);
-                this.particleEngine = new ParticleEngine(this.level, this.scene, this.level.texture);
+                this.particleEngine = new ParticleEngine(this.level, this.scene, terrain_atlas_texture);
                 this.level.particleEngine = this.particleEngine
                 this.player = new Player(this.level);
 
@@ -2264,8 +2187,6 @@
                 }
 
                 this.setupControls();
-
-                this.updateGUIBlock();
 
                 this.render();
             }
@@ -2326,9 +2247,11 @@
             }
 
             takeScreenshot() {
-                const superSamplingFactor = 5;
-                const screenshotWidth = this.width * superSamplingFactor;
-                const screenshotHeight = this.height * superSamplingFactor;
+                const superSamplingFactor = 8;
+                const w = this.canvas_renderer.VIRTUAL_WIDTH;
+                const h = this.canvas_renderer.VIRTUAL_HEIGHT;
+                const screenshotWidth = w * superSamplingFactor;
+                const screenshotHeight = h * superSamplingFactor;
 
                 const renderTarget = new THREE.WebGLRenderTarget(screenshotWidth, screenshotHeight, {
                     minFilter: THREE.NearestFilter,
@@ -2374,6 +2297,117 @@
                 link.click();
 
                 renderTarget.dispose();
+            }
+
+            updateBlockPreview() {
+                if (this.lastPaintTexture == this.paintTexture) {
+                    const blank = document.createElement('canvas');
+                    blank.width = 256;
+                    blank.height = 256;
+
+                    if (this.blockPreview != null && this.blockPreview.toDataURL() != blank.toDataURL()) {
+                        return;
+                    }
+                };
+
+                this.blockPreview = this.renderBlockPreview(this.paintTexture);
+                this.lastPaintTexture = this.paintTexture;
+            }
+
+            renderBlockPreview(blockId, options = {}) {
+                const {
+                    width = 256,
+                    height = 256,
+                    zoom = 1.0,
+                    direction = { x: 1, y: 1, z: 1 }
+                } = options;
+
+                if (!this.renderer || !this.level || !this.level.material) {
+                    return null;
+                }
+
+                const tile = Tile.tiles[blockId];
+                if (!tile) return null;
+
+                const realLevel = this.level;
+                const stubLevel = {
+                    material: realLevel.material,
+                    texture: realLevel.texture,
+                    width: 1, height: 1, depth: 1,
+                    isSolid: () => false,
+                    isLit: () => true,
+                    getBrightness: () => 1.0,
+                };
+
+                const t = new Tesselator();
+                t.init();
+                tile.render(t, stubLevel, 0, 0, 0, 0);
+
+                const geometry = t.flush();
+                if (!geometry) return null;
+
+                const previewScene = new THREE.Scene();
+                const mesh = new THREE.Mesh(geometry, stubLevel.material);
+                previewScene.add(mesh);
+
+                const center = new THREE.Vector3(0.5, 0.5, 0.5);
+                const dir = new THREE.Vector3(direction.x, direction.y, direction.z).normalize();
+                const distance = 10;
+
+                const aspect = width / height;
+                const halfExtent = 1.0 / zoom;
+
+                const cam = new THREE.OrthographicCamera(
+                    -halfExtent * aspect, halfExtent * aspect,
+                    halfExtent, -halfExtent,
+                    0.1, 100
+                );
+
+                cam.up.set(0, 1, 0);
+                cam.position.copy(center).add(dir.clone().multiplyScalar(distance));
+                cam.lookAt(center);
+
+                const renderTarget = new THREE.WebGLRenderTarget(width, height, {
+                    minFilter: THREE.NearestFilter,
+                    magFilter: THREE.NearestFilter,
+                    format: THREE.RGBAFormat
+                });
+
+                const prevRenderTarget = this.renderer.getRenderTarget();
+                const prevClearColor = new THREE.Color();
+                this.renderer.getClearColor(prevClearColor);
+                const prevClearAlpha = this.renderer.getClearAlpha();
+
+                this.renderer.setRenderTarget(renderTarget);
+                this.renderer.setClearColor(0x000000, 0);
+                this.renderer.clear();
+                this.renderer.render(previewScene, cam);
+
+                this.renderer.setRenderTarget(prevRenderTarget);
+                this.renderer.setClearColor(prevClearColor, prevClearAlpha);
+
+                const buffer = new Uint8Array(width * height * 4);
+                this.renderer.readRenderTargetPixels(renderTarget, 0, 0, width, height, buffer);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                const imageData = ctx.createImageData(width, height);
+
+                for (let y = 0; y < height; y++) {
+                    const srcRow = (height - 1 - y) * width * 4;
+                    const destRow = y * width * 4;
+                    for (let i = 0; i < width * 4; i++) {
+                        imageData.data[destRow + i] = buffer[srcRow + i];
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+
+                renderTarget.dispose();
+                geometry.dispose();
+
+                return canvas;
             }
 
             pick(distance = 5.0) {
@@ -2493,19 +2527,15 @@
                     }
                     if (e.code === 'Digit1' || e.code === 'Numpad1') {
                         this.paintTexture = 2;
-                        this.updateGUIBlock();
                     }
                     if (e.code === 'Digit2' || e.code === 'Numpad2') {
                         this.paintTexture = 3;
-                        this.updateGUIBlock();
                     }
                     if (e.code === 'Digit3' || e.code === 'Numpad3') {
                         this.paintTexture = 4;
-                        this.updateGUIBlock();
                     }
                     if (e.code === 'Digit4' || e.code === 'Numpad4') {
                         this.paintTexture = 5;
-                        this.updateGUIBlock();
                     }
                 });
 
@@ -2529,7 +2559,6 @@
                     if (currentIndex < 0) currentIndex = validTileIds.length - 1;
 
                     this.paintTexture = validTileIds[currentIndex];
-                    this.updateGUIBlock()
                 }, { passive: true });
 
                 window.addEventListener('contextmenu', e => e.preventDefault());
@@ -2581,6 +2610,8 @@
                     this.selectionMesh.visible = false;
                 }
 
+                this.updateBlockPreview();
+
                 this.levelRenderer.render(this.player, 0);
                 this.levelRenderer.render(this.player, 1);
 
@@ -2588,9 +2619,7 @@
 
                 this.zombies.forEach(z => z.render(this.timer.a));
 
-                this.renderer.render(this.scene, this.camera);
-
-                this.renderGUI();
+                this.canvas_renderer.render();
             }
 
             moveCameraToPlayer() {
